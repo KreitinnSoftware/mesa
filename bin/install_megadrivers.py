@@ -24,7 +24,16 @@
 
 import argparse
 import os
+import shutil
 
+def link(src, dest):
+    shutil.copyfile(src, dest)
+
+def unlink(src):
+    os.remove(src)
+
+os.link = link
+os.unlink = unlink
 
 def resolve_libdir(libdir):
     if os.path.isabs(libdir):

@@ -1383,7 +1383,7 @@ if not ['linux'].contains(host_machine.system())
   endif
 endif
 
-foreach h : ['xlocale.h', 'linux/futex.h', 'endian.h', 'dlfcn.h', 'sys/shm.h',
+foreach h : ['linux/futex.h', 'endian.h', 'dlfcn.h', 'sys/shm.h',
              'cet.h', 'pthread_np.h', 'sys/inotify.h', 'linux/udmabuf.h']
   if cc.check_header(h)
     pre_args += '-DHAVE_@0@'.format(h.to_upper().underscorify())
@@ -1393,11 +1393,9 @@ endforeach
 functions_to_detect = {
   'strtof': '',
   'mkostemp': '',
-  'memfd_create': '',
   'random_r': '',
   'flock': '',
   'strtok_r': '',
-  'getrandom': '',
   'qsort_s': '',
   'posix_fallocate': '',
   'secure_getenv': '',
