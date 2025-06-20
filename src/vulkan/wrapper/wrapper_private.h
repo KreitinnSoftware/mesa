@@ -12,11 +12,6 @@ extern const struct vk_instance_extension_table wrapper_instance_extensions;
 extern const struct vk_device_extension_table wrapper_device_extensions;
 extern const struct vk_device_extension_table wrapper_filter_extensions;
 
-extern uint64_t WRAPPER_DEBUG;
-
-#define WRAPPER_MAP_MEMORY_PLACED      (1ull << 0)
-#define WRAPPER_BC                     (1ull << 1)
-
 struct wrapper_instance {
    struct vk_instance vk;
 

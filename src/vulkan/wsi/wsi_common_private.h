@@ -87,7 +87,7 @@ struct wsi_image_info {
    VkExternalMemoryImageCreateInfo ext_mem;
    VkImageFormatListCreateInfo format_list;
    VkImageDrmFormatModifierListCreateInfoEXT drm_mod_list;
-#ifdef __TERMUX__
+#ifdef __ANDROID__
    struct AHardwareBuffer_Desc *ahardware_buffer_desc;
 #endif
 
@@ -171,7 +171,7 @@ struct wsi_image {
    int dma_buf_fd;
 #endif
    void *cpu_map;
-#ifdef __TERMUX__
+#ifdef __ANDROID__
    struct AHardwareBuffer *ahardware_buffer;
 #endif
 };

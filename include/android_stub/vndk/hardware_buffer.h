@@ -24,7 +24,7 @@
 
 __BEGIN_DECLS
 
-const native_handle_t* AHardwareBuffer_getNativeHandle(const AHardwareBuffer* buffer);
+const __native_handle_t* AHardwareBuffer_getNativeHandle(const AHardwareBuffer* buffer);
 
 enum CreateFromHandleMethod {
     // enum values chosen to match internal GraphicBuffer::HandleWrapMethod
@@ -46,7 +46,7 @@ enum CreateFromHandleMethod {
  * clone registered. The AHardwareBuffer will own the cloned handle but not the original.
  */
 int AHardwareBuffer_createFromHandle(const AHardwareBuffer_Desc* desc,
-                                     const native_handle_t* handle, int32_t method,
+                                     const __native_handle_t* handle, int32_t method,
                                      AHardwareBuffer** outBuffer);
 
 /**

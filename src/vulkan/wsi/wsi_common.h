@@ -282,7 +282,7 @@ struct wsi_device {
    WSI_CB(MapMemory);
    WSI_CB(UnmapMemory);
    WSI_CB(WaitSemaphores);
-#ifdef __TERMUX__
+#ifdef __ANDROID__
    WSI_CB(GetMemoryAndroidHardwareBufferANDROID);
    WSI_CB(GetAndroidHardwareBufferPropertiesANDROID);
 #endif

@@ -9,6 +9,7 @@
 #include "vk_util.h"
 #include "wsi_common.h"
 #include "util/os_misc.h"
+#include <fcntl.h>
 
 static VkResult
 wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
@@ -126,16 +127,12 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
       supported_features->swapchainMaintenance1 = true;
       supported_features->imageCompressionControlSwapchain = false;
 
-      pdevice->enable_bc =
-         !supported_features->textureCompressionBC
-         && (WRAPPER_DEBUG & WRAPPER_BC);
+      pdevice->enable_bc = true;
 
       if (pdevice->enable_bc)
          supported_features->textureCompressionBC = true;
 
-      pdevice->enable_map_memory_placed =
-         !pdevice->vk.supported_extensions.EXT_map_memory_placed
-         && (WRAPPER_DEBUG & WRAPPER_MAP_MEMORY_PLACED);
+      pdevice->enable_map_memory_placed = true;
 
       if (pdevice->enable_map_memory_placed) {
          pdevice->vk.supported_extensions.EXT_map_memory_placed = true;
@@ -155,7 +152,7 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
       }
       pdevice->vk.wsi_device = &pdevice->wsi_device;
       pdevice->wsi_device.force_bgra8_unorm_first = true;
-#ifdef __TERMUX__
+#ifdef __ANDROID__
       pdevice->wsi_device.wants_ahardware_buffer = true;
 #endif
 

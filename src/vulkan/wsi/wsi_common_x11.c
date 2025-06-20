@@ -69,7 +69,7 @@
 #include <sys/shm.h>
 #endif
 
-#ifdef __TERMUX__
+#ifdef __ANDROID__
 #include <android/hardware_buffer.h>
 #include <sys/socket.h>
 #endif
@@ -2115,7 +2115,7 @@ x11_image_init(VkDevice device_h, struct x11_swapchain *chain,
       /* If the image has a modifier, we must have DRI3 v1.2. */
       assert(chain->has_dri3_modifiers);
 
-#ifdef __TERMUX__
+#ifdef __ANDROID__
       int sock_fds[2] = { -1, -1 };
       if (image->base.ahardware_buffer) {
          if (socketpair(AF_UNIX, SOCK_STREAM, 0, sock_fds) < 0) {
@@ -2156,7 +2156,7 @@ x11_image_init(VkDevice device_h, struct x11_swapchain *chain,
                                               chain->depth, bpp,
                                               image->base.drm_modifier,
                                               fds);
-#ifdef __TERMUX__
+#ifdef __ANDROID__
       if (image->base.ahardware_buffer) {
          xcb_flush(chain->conn);
          uint8_t read_buf;
@@ -2669,7 +2669,7 @@ x11_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
          .alloc_shm = wsi_conn->has_mit_shm ? &alloc_shm : NULL,
       };
       image_params = &cpu_image_params.base;
-#ifdef __TERMUX__
+#ifdef __ANDROID__
    } else if (wsi_device->wants_ahardware_buffer) {
       image_params = &(struct wsi_base_image_params){
          .image_type = WSI_IMAGE_TYPE_AHB,
