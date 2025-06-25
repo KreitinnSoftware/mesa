@@ -413,7 +413,7 @@ wrapper_MapMemory2KHR(VkDevice _device,
    assert(mem->dmabuf_fd >= 0 || mem->ahardware_buffer != NULL);
 
    if (mem->ahardware_buffer) {
-      const __native_handle_t *handle;
+      const native_handle_t *handle;
       const int *handle_fds;
 
       handle = AHardwareBuffer_getNativeHandle(mem->ahardware_buffer);

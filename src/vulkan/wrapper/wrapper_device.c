@@ -35,7 +35,8 @@ const struct vk_device_extension_table wrapper_filter_extensions =
 static void
 wrapper_filter_enabled_extensions(const struct wrapper_device *device,
                                   uint32_t *enable_extension_count,
-                                  const char **enable_extensions)
+                                  const char **enable_extensions,
+                                  const char **fake_extensions)
 {
    for (int idx = 0; idx < VK_DEVICE_EXTENSION_COUNT; idx++) {
       if (!device->vk.enabled_extensions.extensions[idx])
@@ -50,8 +51,10 @@ wrapper_filter_enabled_extensions(const struct wrapper_device *device,
       if (wrapper_filter_extensions.extensions[idx])
          continue;
 
-      enable_extensions[(*enable_extension_count)++] =
-         vk_device_extensions[idx].extensionName;
+      if (fake_extensions[idx] == vk_device_extensions[idx].extensionName)
+         continue;
+
+      enable_extensions[(*enable_extension_count)++] = vk_device_extensions[idx].extensionName;
    }
 }
 
@@ -127,15 +130,51 @@ wrapper_create_device_queue(struct wrapper_device *device,
    return VK_SUCCESS;
 }
 
+static void disableStructureFeatures(const VkDeviceCreateInfo* pCreateInfo) {
+   const VkBaseInStructure* base = (const VkBaseInStructure*)pCreateInfo->pNext;
+   while (base) {
+      switch (base->sType) {
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TRANSFORM_FEEDBACK_FEATURES_EXT:
+         {
+            VkPhysicalDeviceTransformFeedbackFeaturesEXT *feedback_prop = (VkPhysicalDeviceTransformFeedbackFeaturesEXT *)base;
+            feedback_prop->geometryStreams = false;
+            feedback_prop->transformFeedback = false;
+            break;
+         }
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_ENABLE_FEATURES_EXT:
+         {
+            VkPhysicalDeviceDepthClipEnableFeaturesEXT *depthClip_prop = (VkPhysicalDeviceDepthClipEnableFeaturesEXT *)base;
+            depthClip_prop->depthClipEnable = false;
+            break;
+         }
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT:
+         {
+            VkPhysicalDeviceCustomBorderColorFeaturesEXT *customBorderColor_prop = (VkPhysicalDeviceCustomBorderColorFeaturesEXT *)base;
+            customBorderColor_prop->customBorderColors = false;
+            customBorderColor_prop->customBorderColorWithoutFormat = false;
+            break;
+         }
+         default:
+         {
+            break;
+         }
+      }
+
+      base = base->pNext;
+   }
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 wrapper_CreateDevice(VkPhysicalDevice physicalDevice,
-                     const VkDeviceCreateInfo* pCreateInfo,
-                     const VkAllocationCallbacks* pAllocator,
-                     VkDevice* pDevice)
+                      const VkDeviceCreateInfo* pCreateInfo,
+                      const VkAllocationCallbacks* pAllocator,
+                      VkDevice* pDevice)
 {
    VK_FROM_HANDLE(wrapper_physical_device, physical_device, physicalDevice);
    const char *wrapper_enable_extensions[VK_DEVICE_EXTENSION_COUNT];
+   const char *wrapper_fake_extensions[VK_DEVICE_EXTENSION_COUNT];
    uint32_t wrapper_enable_extension_count = 0;
+   uint32_t wrapper_fake_extensions_count = 0;
    VkDeviceCreateInfo wrapper_create_info = *pCreateInfo;
    struct vk_device_dispatch_table dispatch_table;
    struct wrapper_device *device;
@@ -143,8 +182,20 @@ wrapper_CreateDevice(VkPhysicalDevice physicalDevice,
    VkPhysicalDeviceFeatures *pdf;
    VkResult result;
 
-   device = vk_zalloc2(&physical_device->instance->vk.alloc, pAllocator,
-                       sizeof(*device), 8, VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
+#define DISABLE_EXT(extension) \
+   if (physical_device->fake_##extension) { \
+      if (wrapper_fake_extensions_count < VK_DEVICE_EXTENSION_COUNT) { \
+         wrapper_fake_extensions[wrapper_fake_extensions_count++] = "VK_" #extension; \
+         disableStructureFeatures(pCreateInfo); \
+      } \
+   }
+
+   DISABLE_EXT(EXT_transform_feedback);
+   DISABLE_EXT(EXT_depth_clip_enable);
+   DISABLE_EXT(EXT_custom_border_color);
+#undef DISABLE_EXT
+
+   device = vk_zalloc2(&physical_device->instance->vk.alloc, pAllocator, sizeof(*device), 8, VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
    if (!device)
       return vk_error(physical_device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
@@ -153,74 +204,84 @@ wrapper_CreateDevice(VkPhysicalDevice physicalDevice,
    simple_mtx_init(&device->resource_mutex, mtx_plain);
    device->physical = physical_device;
 
-   vk_device_dispatch_table_from_entrypoints(
-      &dispatch_table, &wrapper_device_entrypoints, true);
-   vk_device_dispatch_table_from_entrypoints(
-      &dispatch_table, &wsi_device_entrypoints, false);
-   vk_device_dispatch_table_from_entrypoints(
-      &dispatch_table, &wrapper_device_trampolines, false);
+   vk_device_dispatch_table_from_entrypoints(&dispatch_table, &wrapper_device_entrypoints, true);
+   vk_device_dispatch_table_from_entrypoints(&dispatch_table, &wsi_device_entrypoints, false);
+   vk_device_dispatch_table_from_entrypoints(&dispatch_table, &wrapper_device_trampolines, false);
 
-   result = vk_device_init(&device->vk, &physical_device->vk,
-                           &dispatch_table, pCreateInfo, pAllocator);
+   result = vk_device_init(&device->vk, &physical_device->vk, &dispatch_table, pCreateInfo, pAllocator);
 
    if (result != VK_SUCCESS) {
-      vk_free2(&physical_device->instance->vk.alloc, pAllocator,
-               device);
+      vk_free2(&physical_device->instance->vk.alloc, pAllocator, device);
       return vk_error(physical_device, result);
    }
 
-   wrapper_filter_enabled_extensions(device,
-      &wrapper_enable_extension_count, wrapper_enable_extensions);
-   wrapper_append_required_extensions(&device->vk,
-      &wrapper_enable_extension_count, wrapper_enable_extensions);
+   wrapper_filter_enabled_extensions(device, &wrapper_enable_extension_count, wrapper_enable_extensions, wrapper_fake_extensions);
+   wrapper_append_required_extensions(&device->vk, &wrapper_enable_extension_count, wrapper_enable_extensions);
 
    wrapper_create_info.enabledExtensionCount = wrapper_enable_extension_count;
    wrapper_create_info.ppEnabledExtensionNames = wrapper_enable_extensions;
 
-   if (physical_device->enable_bc) {
-      pdf = (void *)pCreateInfo->pEnabledFeatures;
-      if (pdf && pdf->textureCompressionBC)
-         pdf->textureCompressionBC = false;
+   pdf = (void *)pCreateInfo->pEnabledFeatures;
+   pdf2 = __vk_find_struct((void *)pCreateInfo->pNext, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2);
 
-      pdf2 = __vk_find_struct((void *)pCreateInfo->pNext,
-         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2);
-      if (pdf2 && pdf2->features.textureCompressionBC)
-         pdf2->features.textureCompressionBC = false;
+#define DISABLE_FEAT(feature) \
+   if (pdf && physical_device->fake_##feature && pdf->feature) { \
+      pdf->feature = false; \
+   } \
+   if (pdf2 && physical_device->fake_##feature && pdf2->features.feature) { \
+      pdf2->features.feature = false; \
    }
 
-   result = physical_device->dispatch_table.CreateDevice(
-      physical_device->dispatch_handle, &wrapper_create_info,
-         pAllocator, &device->dispatch_handle);
+   DISABLE_FEAT(textureCompressionBC);
+   DISABLE_FEAT(multiViewport);
+   DISABLE_FEAT(logicOp);
+   DISABLE_FEAT(variableMultisampleRate);
+   DISABLE_FEAT(fillModeNonSolid);
+   DISABLE_FEAT(samplerAnisotropy);
+   DISABLE_FEAT(shaderImageGatherExtended);
+   DISABLE_FEAT(vertexPipelineStoresAndAtomics);
+   DISABLE_FEAT(dualSrcBlend);
+   DISABLE_FEAT(multiDrawIndirect);
+   DISABLE_FEAT(shaderCullDistance);
+   DISABLE_FEAT(shaderClipDistance);
+   DISABLE_FEAT(geometryShader);
+   DISABLE_FEAT(robustBufferAccess);
+   DISABLE_FEAT(tessellationShader);
+   DISABLE_FEAT(depthClamp);
+   DISABLE_FEAT(depthBiasClamp);
+   DISABLE_FEAT(shaderStorageImageExtendedFormats);
+   DISABLE_FEAT(shaderStorageImageWriteWithoutFormat);
+   DISABLE_FEAT(sampleRateShading);
+   DISABLE_FEAT(occlusionQueryPrecise);
+   DISABLE_FEAT(independentBlend);
+   DISABLE_FEAT(fullDrawIndexUint32);
+   DISABLE_FEAT(imageCubeArray);
+   DISABLE_FEAT(drawIndirectFirstInstance);
+   DISABLE_FEAT(fragmentStoresAndAtomics);
+#undef DISABLE_FEAT
+
+   result = physical_device->dispatch_table.CreateDevice(physical_device->dispatch_handle, &wrapper_create_info, pAllocator, &device->dispatch_handle);
 
    if (result != VK_SUCCESS) {
-      wrapper_DestroyDevice(wrapper_device_to_handle(device),
-                            &device->vk.alloc);
+      wrapper_DestroyDevice(wrapper_device_to_handle(device), &device->vk.alloc);
       return vk_error(physical_device, result);
    }
 
-   void *gdpa = physical_device->instance->dispatch_table.GetInstanceProcAddr(
-      physical_device->instance->dispatch_handle, "vkGetDeviceProcAddr");
-   vk_device_dispatch_table_load(&device->dispatch_table, gdpa,
-                                 device->dispatch_handle);
+   void *gdpa = physical_device->instance->dispatch_table.GetInstanceProcAddr(physical_device->instance->dispatch_handle, "vkGetDeviceProcAddr");
+   vk_device_dispatch_table_load(&device->dispatch_table, gdpa, device->dispatch_handle);
 
    result = wrapper_create_device_queue(device, pCreateInfo);
    if (result != VK_SUCCESS) {
-      wrapper_DestroyDevice(wrapper_device_to_handle(device),
-                            &device->vk.alloc);
+      wrapper_DestroyDevice(wrapper_device_to_handle(device), &device->vk.alloc);
       return vk_error(physical_device, result);
    }
 
-   if (!physical_device->enable_map_memory_placed) {
-      device->vk.dispatch_table.AllocateMemory =
-         wrapper_device_trampolines.AllocateMemory;
-      device->vk.dispatch_table.MapMemory2 =
-         wrapper_device_trampolines.MapMemory2;
-      device->vk.dispatch_table.UnmapMemory =
-         wrapper_device_trampolines.UnmapMemory;
-      device->vk.dispatch_table.UnmapMemory2 =
-         wrapper_device_trampolines.UnmapMemory2;
-      device->vk.dispatch_table.FreeMemory =
-         wrapper_device_trampolines.FreeMemory;
+   if (!physical_device->fake_memoryMapPlaced) {
+      device->vk.dispatch_table.AllocateMemory = wrapper_device_trampolines.AllocateMemory;
+      device->vk.dispatch_table.MapMemory2 = wrapper_device_trampolines.MapMemory2;
+      device->vk.dispatch_table.UnmapMemory = wrapper_device_trampolines.UnmapMemory;
+      device->vk.dispatch_table.UnmapMemory2 = wrapper_device_trampolines.UnmapMemory2;
+      device->vk.dispatch_table.FreeMemory = wrapper_device_trampolines.FreeMemory;
    }
 
    *pDevice = wrapper_device_to_handle(device);
@@ -524,6 +585,55 @@ wrapper_GetPrivateData(VkDevice _device, VkObjectType objectType,
    VK_FROM_HANDLE(wrapper_device, device, _device);
 
    uint64_t object_handle = unwrap_device_object(objectType, objectHandle);
-   return device->dispatch_table.GetPrivateData(device->dispatch_handle,
-      objectType, object_handle, privateDataSlot, pData);
+   return device->dispatch_table.GetPrivateData(device->dispatch_handle, objectType, object_handle, privateDataSlot, pData);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+wrapper_CreateGraphicsPipelines(VkDevice _device,
+                                 VkPipelineCache pipelineCache,
+                                 uint32_t createInfoCount,
+                                 const VkGraphicsPipelineCreateInfo* pCreateInfos,
+                                 const VkAllocationCallbacks* pAllocator,
+                                 VkPipeline* pPipelines)
+{
+   VK_FROM_HANDLE(wrapper_device, device, _device);
+
+   VkGraphicsPipelineCreateInfo* modifiedInfos = malloc(sizeof(VkGraphicsPipelineCreateInfo) * createInfoCount);
+
+   for (uint32_t i = 0; i < createInfoCount; i++) {
+      const VkGraphicsPipelineCreateInfo* src = &pCreateInfos[i];
+      VkGraphicsPipelineCreateInfo* dst = &modifiedInfos[i];
+
+      *dst = *src;
+
+      uint32_t newStageCount = 0;
+      for (uint32_t j = 0; j < src->stageCount; j++) {
+         if (device->physical->fake_geometryShader ||
+            (src->pStages[j].stage & VK_SHADER_STAGE_GEOMETRY_BIT) == 0) {
+            newStageCount++;
+         }
+      }
+
+      VkPipelineShaderStageCreateInfo* newStages = malloc(sizeof(VkPipelineShaderStageCreateInfo) * newStageCount);
+
+      uint32_t idx = 0;
+      for (uint32_t j = 0; j < src->stageCount; j++) {
+         if (device->physical->fake_geometryShader ||
+            (src->pStages[j].stage & VK_SHADER_STAGE_GEOMETRY_BIT) == 0) {
+            newStages[idx++] = src->pStages[j];
+         }
+      }
+
+      dst->stageCount = newStageCount;
+      dst->pStages = newStages;
+   }
+
+   VkResult result = device->dispatch_table.CreateGraphicsPipelines(device->dispatch_handle, pipelineCache, createInfoCount, modifiedInfos, pAllocator, pPipelines);
+
+   for (uint32_t i = 0; i < createInfoCount; i++) {
+      free((void*)modifiedInfos[i].pStages);
+   }
+   free(modifiedInfos);
+
+   return result;
 }

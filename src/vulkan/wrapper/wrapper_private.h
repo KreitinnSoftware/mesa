@@ -26,8 +26,39 @@ struct wrapper_physical_device {
    struct vk_physical_device vk;
 
    int dma_heap_fd;
-   bool enable_map_memory_placed;
-   bool enable_bc;
+   bool fake_memoryMapPlaced;
+   bool fake_textureCompressionBC;
+   bool fake_multiViewport;
+   bool fake_logicOp;
+   bool fake_variableMultisampleRate;
+   bool fake_fillModeNonSolid;
+   bool fake_samplerAnisotropy;
+   bool fake_shaderImageGatherExtended;
+   bool fake_vertexPipelineStoresAndAtomics;
+   bool fake_dualSrcBlend;
+   bool fake_multiDrawIndirect;
+   bool fake_shaderCullDistance;
+   bool fake_shaderClipDistance;
+   bool fake_geometryShader;
+   bool fake_robustBufferAccess;
+   bool fake_tessellationShader;
+   bool fake_depthClamp;
+   bool fake_depthBiasClamp;
+   bool fake_shaderStorageImageExtendedFormats;
+   bool fake_shaderStorageImageWriteWithoutFormat;
+   bool fake_sampleRateShading;
+   bool fake_occlusionQueryPrecise;
+   bool fake_independentBlend;
+   bool fake_fullDrawIndexUint32;
+   bool fake_imageCubeArray;
+   bool fake_drawIndirectFirstInstance;
+   bool fake_fragmentStoresAndAtomics;
+
+   bool fake_EXT_map_memory_placed;
+   bool fake_EXT_transform_feedback;
+   bool fake_EXT_depth_clip_enable;
+   bool fake_EXT_custom_border_color;
+
    VkPhysicalDevice dispatch_handle;
    VkPhysicalDeviceProperties2 properties2;
    VkPhysicalDeviceDriverProperties driver_properties;
