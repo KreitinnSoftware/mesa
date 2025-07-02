@@ -134,6 +134,14 @@ static void disableStructureFeatures(const VkDeviceCreateInfo* pCreateInfo) {
    const VkBaseInStructure* base = (const VkBaseInStructure*)pCreateInfo->pNext;
    while (base) {
       switch (base->sType) {
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAP_MEMORY_PLACED_FEATURES_EXT:
+         {
+            VkPhysicalDeviceMapMemoryPlacedFeaturesEXT *placed_prop = (VkPhysicalDeviceMapMemoryPlacedFeaturesEXT *)base;
+            placed_prop->memoryMapPlaced = false;
+            placed_prop->memoryMapRangePlaced = false;
+            placed_prop->memoryUnmapReserve = false;
+            break;
+         }
          case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TRANSFORM_FEEDBACK_FEATURES_EXT:
          {
             VkPhysicalDeviceTransformFeedbackFeaturesEXT *feedback_prop = (VkPhysicalDeviceTransformFeedbackFeaturesEXT *)base;
@@ -193,6 +201,7 @@ wrapper_CreateDevice(VkPhysicalDevice physicalDevice,
    DISABLE_EXT(EXT_transform_feedback);
    DISABLE_EXT(EXT_depth_clip_enable);
    DISABLE_EXT(EXT_custom_border_color);
+   DISABLE_EXT(EXT_map_memory_placed);
 #undef DISABLE_EXT
 
    device = vk_zalloc2(&physical_device->instance->vk.alloc, pAllocator, sizeof(*device), 8, VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
@@ -232,32 +241,32 @@ wrapper_CreateDevice(VkPhysicalDevice physicalDevice,
       pdf2->features.feature = false; \
    }
 
-   DISABLE_FEAT(textureCompressionBC);
-   DISABLE_FEAT(multiViewport);
-   DISABLE_FEAT(logicOp);
-   DISABLE_FEAT(variableMultisampleRate);
-   DISABLE_FEAT(fillModeNonSolid);
-   DISABLE_FEAT(samplerAnisotropy);
-   DISABLE_FEAT(shaderImageGatherExtended);
-   DISABLE_FEAT(vertexPipelineStoresAndAtomics);
-   DISABLE_FEAT(dualSrcBlend);
-   DISABLE_FEAT(multiDrawIndirect);
-   DISABLE_FEAT(shaderCullDistance);
-   DISABLE_FEAT(shaderClipDistance);
    DISABLE_FEAT(geometryShader);
    DISABLE_FEAT(robustBufferAccess);
-   DISABLE_FEAT(tessellationShader);
-   DISABLE_FEAT(depthClamp);
-   DISABLE_FEAT(depthBiasClamp);
    DISABLE_FEAT(shaderStorageImageExtendedFormats);
    DISABLE_FEAT(shaderStorageImageWriteWithoutFormat);
+   DISABLE_FEAT(depthClamp);
+   DISABLE_FEAT(depthBiasClamp);
+   DISABLE_FEAT(fillModeNonSolid);
    DISABLE_FEAT(sampleRateShading);
+   DISABLE_FEAT(samplerAnisotropy);
+   DISABLE_FEAT(shaderClipDistance);
+   DISABLE_FEAT(shaderCullDistance);
+   DISABLE_FEAT(textureCompressionBC);
    DISABLE_FEAT(occlusionQueryPrecise);
    DISABLE_FEAT(independentBlend);
+   DISABLE_FEAT(multiViewport);
    DISABLE_FEAT(fullDrawIndexUint32);
+   DISABLE_FEAT(shaderImageGatherExtended);
+   DISABLE_FEAT(dualSrcBlend);
    DISABLE_FEAT(imageCubeArray);
    DISABLE_FEAT(drawIndirectFirstInstance);
    DISABLE_FEAT(fragmentStoresAndAtomics);
+   DISABLE_FEAT(multiDrawIndirect);
+   DISABLE_FEAT(tessellationShader);
+   DISABLE_FEAT(logicOp);
+   DISABLE_FEAT(variableMultisampleRate);
+   DISABLE_FEAT(vertexPipelineStoresAndAtomics);
 #undef DISABLE_FEAT
 
    result = physical_device->dispatch_table.CreateDevice(physical_device->dispatch_handle, &wrapper_create_info, pAllocator, &device->dispatch_handle);
@@ -276,7 +285,7 @@ wrapper_CreateDevice(VkPhysicalDevice physicalDevice,
       return vk_error(physical_device, result);
    }
 
-   if (!physical_device->fake_memoryMapPlaced) {
+   if (!physical_device->fake_EXT_map_memory_placed) {
       device->vk.dispatch_table.AllocateMemory = wrapper_device_trampolines.AllocateMemory;
       device->vk.dispatch_table.MapMemory2 = wrapper_device_trampolines.MapMemory2;
       device->vk.dispatch_table.UnmapMemory = wrapper_device_trampolines.UnmapMemory;

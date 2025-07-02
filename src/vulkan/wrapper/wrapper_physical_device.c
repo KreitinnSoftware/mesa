@@ -123,11 +123,11 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
       struct vk_features *supported_features = &pdevice->vk.supported_features;
       pdevice->base_supported_features = *supported_features;
 
-      #define ENABLE_FEAT(feature) \
-         if (!supported_features->feature) { \
-            pdevice->fake_##feature = true; \
-            supported_features->feature = true; \
-         }
+   #define ENABLE_FEAT(feature) \
+      if (!supported_features->feature) { \
+         pdevice->fake_##feature = true; \
+         supported_features->feature = true; \
+      }
 
       ENABLE_FEAT(geometryShader);
       ENABLE_FEAT(robustBufferAccess);
@@ -155,20 +155,19 @@ VkResult enumerate_physical_device(struct vk_instance *_instance)
       ENABLE_FEAT(logicOp);
       ENABLE_FEAT(variableMultisampleRate);
       ENABLE_FEAT(vertexPipelineStoresAndAtomics);
-      ENABLE_FEAT(shaderImageGatherExtended);
-      ENABLE_FEAT(shaderImageGatherExtended);
-      ENABLE_FEAT(memoryMapPlaced);
+   #undef ENABLE_FEAT
 
-      #define ENABLE_EXT(extension) \
-         if (!pdevice->vk.supported_extensions.extension) { \
-            pdevice->fake_##extension = true; \
-            pdevice->vk.supported_extensions.extension = true; \
-         }
+   #define ENABLE_EXT(extension) \
+      if (!pdevice->vk.supported_extensions.extension) { \
+         pdevice->fake_##extension = true; \
+         pdevice->vk.supported_extensions.extension = true; \
+      }
 
       ENABLE_EXT(EXT_map_memory_placed);
       ENABLE_EXT(EXT_transform_feedback);
       ENABLE_EXT(EXT_depth_clip_enable);
       ENABLE_EXT(EXT_custom_border_color);
+   #undef ENABLE_EXT
 
       supported_features->presentId = true;
       supported_features->presentWait = supported_features->timelineSemaphore;
@@ -283,6 +282,14 @@ wrapper_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    vk_common_GetPhysicalDeviceFeatures2(physicalDevice, pFeatures);
    vk_foreach_struct(prop, pFeatures->pNext) {
       switch (prop->sType) {
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAP_MEMORY_PLACED_FEATURES_EXT:
+         {
+            VkPhysicalDeviceMapMemoryPlacedFeaturesEXT *placed_prop = (VkPhysicalDeviceMapMemoryPlacedFeaturesEXT *)prop;
+            placed_prop->memoryMapPlaced = true;
+            placed_prop->memoryMapRangePlaced = true;
+            placed_prop->memoryUnmapReserve = true;
+            break;
+         }
          case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TRANSFORM_FEEDBACK_FEATURES_EXT:
          {
             VkPhysicalDeviceTransformFeedbackFeaturesEXT *feedback_prop = (VkPhysicalDeviceTransformFeedbackFeaturesEXT *)prop;
